@@ -1,0 +1,6 @@
+torch
+torchvision
+torchaudio
+gym
+pygame
+numpy
