@@ -1,13 +1,14 @@
 import pygame
 import sys
+import matplotlib.pyplot as plt
 from game.snake import Snake, UP, DOWN, LEFT, RIGHT
 from game.controller import Controller
 from game.reward import Reward
+from state_representation.state import get_state
 
 NUMBER_OF_SQUARES_HORIZONTAL = 30
 RECTANGLE_FRAME_SIZE = 5
-SNAKE_INITIAL_SPEED = 5
-SNAKE_COLOR = (150,150,150)  # Rouge pâle
+SNAKE_COLOR = (150, 150, 150)  # Gris pâle
 REWARD_COLOR = (255, 100, 100)
 
 def initialize_pygame():
@@ -74,8 +75,8 @@ def draw_game_over(screen, font):
     screen.blit(game_over_text, game_over_rect)
 
 def draw_score(screen, font, score):
-    score_text = font.render(f'Score: {score}', True, (100,100,100))
-    score_rect = score_text.get_rect(center=(screen.get_width() // 2, screen.get_height()/5))
+    score_text = font.render(f'Score: {score}', True, (100, 100, 100))
+    score_rect = score_text.get_rect(center=(screen.get_width() // 2, screen.get_height() / 5))
     screen.blit(score_text, score_rect)
 
 def reset_game(snake, reward, frame_x, frame_y, frame_width, frame_height, cell_size):
@@ -84,7 +85,8 @@ def reset_game(snake, reward, frame_x, frame_y, frame_width, frame_height, cell_
     reward.position = reward.random_position(snake.positions)
     return 0, False
 
-def main():
+
+def main(USER_CONTROL, SNAKE_INITIAL_SPEED):
     screen = initialize_pygame()
     clock = pygame.time.Clock()
 
@@ -104,11 +106,13 @@ def main():
     reward = Reward(frame_x, frame_y, frame_width, frame_height, cell_size, snake_positions)
 
     # Choisissez le contrôleur (utilisateur ou ML)
-    user_control = True  # Changez ceci à False pour utiliser le contrôleur ML
+    user_control = USER_CONTROL
     controller = Controller()
 
     score = 0
     last_update_time = pygame.time.get_ticks()
+    scores = []
+    rewards = []
     
     running = True
     game_over = False
@@ -121,10 +125,13 @@ def main():
                 controller.handle_event(event)
             elif game_over and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 score, game_over = reset_game(snake, reward, frame_x, frame_y, frame_width, frame_height, cell_size)
+                scores.append(score)
+                rewards.append(reward_value)
 
         if not game_over:
             current_time = pygame.time.get_ticks()
             if current_time - last_update_time > 1000 // snake.speed:
+                state = get_state(snake.positions, reward.position, frame_x, frame_y, frame_width, frame_height, cell_size)
                 if user_control:
                     direction = controller.get_direction()
                 else:
@@ -137,25 +144,28 @@ def main():
 
                 # Vérifier les collisions
                 if snake.check_collision(frame_x, frame_y, frame_width, frame_height, cell_size):
+                    reward_value = -100  # Récompense négative pour collision
                     game_over = True
 
                 # Vérifier si le serpent mange la récompense
                 if snake.positions[0] == reward.position:
                     snake.grow()
+                    reward_value = 10  # Récompense positive pour manger une pomme
                     reward = Reward(frame_x, frame_y, frame_width, frame_height, cell_size, snake.positions)
                     score += 1
+                else:
+                    reward_value = -0.1  # Récompense légèrement négative pour chaque mouvement
+                
+                rewards.append(reward_value)
 
         screen.fill((255, 255, 255))  # Remplir l'écran avec la couleur blanche
         screen.blit(title_text, title_rect)
         
-
         draw_score(screen, font, score)
-        #draw_grid(screen, frame_x, frame_y, frame_width, frame_height, nbre_squares_horizontal=NUMBER_OF_SQUARES_HORIZONTAL)
         if not game_over:
             draw_game_frame(screen)
             draw_snake(screen, snake.positions, cell_size, frame_x, frame_y, RECTANGLE_FRAME_SIZE / 2, RECTANGLE_FRAME_SIZE / 2)
             reward.draw(screen, REWARD_COLOR, RECTANGLE_FRAME_SIZE / 2)
-
 
         if game_over:
             draw_game_over(screen, font)
